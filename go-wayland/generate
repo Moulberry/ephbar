@@ -1,0 +1,7 @@
+#!/bin/sh
+
+cd cmd/go-wayland-scanner
+go install
+
+cd ../../wayland
+go generate  -x ./...
