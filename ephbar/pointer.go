@@ -38,12 +38,13 @@ type pointerEvent struct {
 	axisSource uint32
 }
 
-func (app *appState) attachPointer() {
-	pointer, err := app.seat.GetPointer()
+func (seat *Seat) attachPointer() {
+	pointer, err := seat.wlSeat.GetPointer()
 	if err != nil {
 		fatal("unable to register pointer interface")
 	}
-	app.pointer = pointer
+	seat.pointer = pointer
+	app := seat.wayland.appState
 	pointer.AddEnterHandler(app.HandlePointerEnter)
 	pointer.AddLeaveHandler(app.HandlePointerLeave)
 	pointer.AddMotionHandler(app.HandlePointerMotion)
@@ -57,35 +58,35 @@ func (app *appState) attachPointer() {
 	info("pointer interface registered")
 }
 
-func (app *appState) releasePointer() {
-	if err := app.pointer.Release(); err != nil {
+func (seat *Seat) releasePointer() {
+	if err := seat.pointer.Release(); err != nil {
 		fatal("unable to release pointer interface")
 	}
-	app.pointer = nil
+	seat.pointer = nil
 
 	info("pointer interface released")
 }
 
-func (app *appState) HandlePointerEnter(e client.PointerEnterEvent) {
+func (app *AppState) HandlePointerEnter(e client.PointerEnterEvent) {
 	app.pointerEvent.eventMask |= pointerEventEnter
 	app.pointerEvent.serial = e.Serial
 	app.pointerEvent.surfaceX = uint32(e.SurfaceX)
 	app.pointerEvent.surfaceY = uint32(e.SurfaceY)
 }
 
-func (app *appState) HandlePointerLeave(e client.PointerLeaveEvent) {
+func (app *AppState) HandlePointerLeave(e client.PointerLeaveEvent) {
 	app.pointerEvent.eventMask |= pointerEventLeave
 	app.pointerEvent.serial = e.Serial
 }
 
-func (app *appState) HandlePointerMotion(e client.PointerMotionEvent) {
+func (app *AppState) HandlePointerMotion(e client.PointerMotionEvent) {
 	app.pointerEvent.eventMask |= pointerEventMotion
 	app.pointerEvent.time = e.Time
 	app.pointerEvent.surfaceX = uint32(e.SurfaceX)
 	app.pointerEvent.surfaceY = uint32(e.SurfaceY)
 }
 
-func (app *appState) HandlePointerButton(e client.PointerButtonEvent) {
+func (app *AppState) HandlePointerButton(e client.PointerButtonEvent) {
 	app.pointerEvent.eventMask |= pointerEventButton
 	app.pointerEvent.serial = e.Serial
 	app.pointerEvent.time = e.Time
@@ -93,25 +94,25 @@ func (app *appState) HandlePointerButton(e client.PointerButtonEvent) {
 	app.pointerEvent.state = e.State
 }
 
-func (app *appState) HandlePointerAxis(e client.PointerAxisEvent) {
+func (app *AppState) HandlePointerAxis(e client.PointerAxisEvent) {
 	app.pointerEvent.eventMask |= pointerEventAxis
 	app.pointerEvent.time = e.Time
 	app.pointerEvent.axes[e.Axis].valid = true
 	app.pointerEvent.axes[e.Axis].value = int32(e.Value)
 }
 
-func (app *appState) HandlePointerAxisSource(e client.PointerAxisSourceEvent) {
+func (app *AppState) HandlePointerAxisSource(e client.PointerAxisSourceEvent) {
 	app.pointerEvent.eventMask |= pointerEventAxis
 	app.pointerEvent.axisSource = e.AxisSource
 }
 
-func (app *appState) HandlePointerAxisStop(e client.PointerAxisStopEvent) {
+func (app *AppState) HandlePointerAxisStop(e client.PointerAxisStopEvent) {
 	app.pointerEvent.eventMask |= pointerEventAxisStop
 	app.pointerEvent.time = e.Time
 	app.pointerEvent.axes[e.Axis].valid = true
 }
 
-func (app *appState) HandlePointerAxisDiscrete(e client.PointerAxisDiscreteEvent) {
+func (app *AppState) HandlePointerAxisDiscrete(e client.PointerAxisDiscreteEvent) {
 	app.pointerEvent.eventMask |= pointerEventAxisDiscrete
 	app.pointerEvent.axes[e.Axis].valid = true
 	app.pointerEvent.axes[e.Axis].discrete = e.Discrete
@@ -129,7 +130,7 @@ var cursorMap = map[xdg_shell.ToplevelResizeEdge]string{
 	xdg_shell.ToplevelResizeEdgeNone:        cursor.LeftPtr,
 }
 
-func (app *appState) HandlePointerFrame(_ client.PointerFrameEvent) {
+func (app *AppState) HandlePointerFrame(_ client.PointerFrameEvent) {
 	e := app.pointerEvent
 
 	if (e.eventMask & pointerEventEnter) != 0 {
@@ -138,10 +139,6 @@ func (app *appState) HandlePointerFrame(_ client.PointerFrameEvent) {
 
 	if (e.eventMask & pointerEventLeave) != 0 {
 		verbose("leave")
-
-		if err := app.pointer.SetCursor(e.serial, nil, 0, 0); err != nil {
-			fatal("unable to set cursor")
-		}
 	}
 	if (e.eventMask & pointerEventMotion) != 0 {
 		// verbose("motion %v, %v", e.surfaceX, e.surfaceY)
